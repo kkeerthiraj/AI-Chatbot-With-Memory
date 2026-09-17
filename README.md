@@ -3,7 +3,17 @@
 A local AI chatbot built with **Python, Streamlit, Ollama, and Llama 3.2** that maintains short-term conversational memory during an active session.
 
 The chatbot runs the language model locally through Ollama, allowing conversations without relying on a cloud-based AI API.
+## 📸 Demo
 
+### 💬 Chatbot with Memory
+
+![AI Chatbot with Memory - Chat](demo-1.png)
+
+### 🧠 Memory in Action
+
+![AI Chatbot with Memory - Memory](demo-2.png)
+
+The chatbot remembers previous messages during the active Streamlit session and can display the stored conversation using the `/memory` command.
 ---
 
 ## ✨ Features
