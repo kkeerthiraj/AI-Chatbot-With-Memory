@@ -1,12 +1,11 @@
 import streamlit as st
-import os
-from dotenv import load_dotenv
-from openai import OpenAI
+import requests
 
 
-# -----------------------------
-# Page configuration
-# -----------------------------
+# =============================
+# Page Configuration
+# =============================
+
 st.set_page_config(
     page_title="AI Chatbot with Memory",
     page_icon="🤖",
@@ -14,50 +13,58 @@ st.set_page_config(
 )
 
 
-# -----------------------------
+# =============================
 # Configuration
-# -----------------------------
-load_dotenv()
+# =============================
 
-MODEL_NAME = "gpt-5.6-luna"
+MODEL = "llama3.2:3b"
+OLLAMA_URL = "http://localhost:11434/api/chat"
 MEMORY_LIMIT = 10
 
-client = OpenAI(
-    api_key=os.getenv("OPENAI_API_KEY")
-)
 
+# =============================
+# Initialize Conversation Memory
+# =============================
 
-# -----------------------------
-# Initialize memory
-# -----------------------------
 if "conversation_history" not in st.session_state:
     st.session_state.conversation_history = []
 
 
-# -----------------------------
-# Helper: limit memory
-# -----------------------------
+# =============================
+# Memory Management
+# =============================
+
 def limit_memory():
+    """Keep only the most recent messages."""
+    
     if len(st.session_state.conversation_history) > MEMORY_LIMIT:
         st.session_state.conversation_history = (
             st.session_state.conversation_history[-MEMORY_LIMIT:]
         )
 
 
-# -----------------------------
+def clear_memory():
+    """Clear the current conversation memory."""
+    
+    st.session_state.conversation_history = []
+
+
+# =============================
 # Header
-# -----------------------------
+# =============================
+
 st.title("🤖 AI Chatbot with Memory")
 
 st.caption(
-    f"Powered by Ollama • {MODEL_NAME} • "
+    f"Powered by Ollama • {MODEL} • "
     f"Memory limit: {MEMORY_LIMIT} messages"
 )
 
 
-# -----------------------------
+# =============================
 # Sidebar
-# -----------------------------
+# =============================
+
 with st.sidebar:
 
     st.header("🧠 Memory")
@@ -71,10 +78,8 @@ with st.sidebar:
         f"**{message_count}/{MEMORY_LIMIT}**"
     )
 
-    if st.button("🗑️ Clear Memory"):
-
-        st.session_state.conversation_history = []
-
+    if st.button("🗑️ Clear Memory", use_container_width=True):
+        clear_memory()
         st.rerun()
 
     st.divider()
@@ -82,7 +87,6 @@ with st.sidebar:
     st.subheader("Commands")
 
     st.write("**/clear** — Clear conversation memory")
-
     st.write("**/memory** — Show stored memory")
 
     st.divider()
@@ -90,29 +94,30 @@ with st.sidebar:
     st.subheader("About")
 
     st.write(
-        "This chatbot uses an in-memory conversation "
-        "history to remember previous messages."
+        "This chatbot uses Ollama to run "
+        "a local Llama 3.2 model."
     )
 
     st.write(
-        "Older messages are automatically removed "
-        "when the memory limit is reached."
+        "Conversation history is stored temporarily "
+        "during the active Streamlit session."
     )
 
 
-# -----------------------------
-# Display previous messages
-# -----------------------------
+# =============================
+# Display Previous Messages
+# =============================
+
 for message in st.session_state.conversation_history:
 
     with st.chat_message(message["role"]):
-
         st.markdown(message["content"])
 
 
-# -----------------------------
-# Chat input
-# -----------------------------
+# =============================
+# Chat Input
+# =============================
+
 user_message = st.chat_input("Type your message...")
 
 
@@ -120,29 +125,21 @@ if user_message:
 
     user_message = user_message.strip()
 
-    # -------------------------
-    # Input validation
-    # -------------------------
     if not user_message:
-
         st.warning("Please enter a message.")
-
         st.stop()
 
 
-    # -------------------------
-    # /clear command
-    # -------------------------
+    # =========================
+    # Commands
+    # =========================
+
     if user_message.lower() == "/clear":
 
-        st.session_state.conversation_history = []
-
+        clear_memory()
         st.rerun()
 
 
-    # -------------------------
-    # /memory command
-    # -------------------------
     if user_message.lower() == "/memory":
 
         st.subheader("🧠 Current Memory")
@@ -156,17 +153,19 @@ if user_message:
             for message in st.session_state.conversation_history:
 
                 role = message["role"].capitalize()
-
                 content = message["content"]
 
-                st.write(f"**{role}:** {content}")
+                st.write(
+                    f"**{role}:** {content}"
+                )
 
         st.stop()
 
 
-    # -------------------------
-    # Add user message
-    # -------------------------
+    # =========================
+    # Store User Message
+    # =========================
+
     st.session_state.conversation_history.append(
         {
             "role": "user",
@@ -177,45 +176,69 @@ if user_message:
     limit_memory()
 
 
-    # -------------------------
-    # Display user message
-    # -------------------------
-    with st.chat_message("user"):
+    # =========================
+    # Display User Message
+    # =========================
 
+    with st.chat_message("user"):
         st.markdown(user_message)
 
 
-    # ------------------------
-# Send conversation to OpenAI
-# ------------------------
-try:
-    conversation_text = "\n".join(
-        f"{message['role']}: {message['content']}"
-        for message in st.session_state.conversation_history
-    )
+    # =========================
+    # Send Conversation to Ollama
+    # =========================
 
-    response = client.responses.create(
-        model=MODEL_NAME,
-        input=conversation_text
-    )
+    try:
 
-    assistant_message = response.output_text
+        response = requests.post(
+            OLLAMA_URL,
+            json={
+                "model": MODEL,
+                "messages": st.session_state.conversation_history,
+                "stream": False
+            },
+            timeout=120
+        )
 
-except Exception as e:
-    assistant_message = f"❌ Error: {e}"
+        response.raise_for_status()
+
+        assistant_message = (
+            response.json()["message"]["content"]
+        )
 
 
-    # -------------------------
-    # Display AI response
-    # -------------------------
+    except requests.exceptions.ConnectionError:
+
+        assistant_message = (
+            "❌ Could not connect to Ollama.\n\n"
+            "Please make sure Ollama is running."
+        )
+
+
+    except requests.exceptions.Timeout:
+
+        assistant_message = (
+            "❌ Ollama took too long to respond."
+        )
+
+
+    except Exception as e:
+
+        assistant_message = f"❌ Error: {e}"
+
+
+    # =========================
+    # Display AI Response
+    # =========================
+
     with st.chat_message("assistant"):
-
         st.markdown(assistant_message)
 
 
-    # -------------------------
-    # Store AI response
-    # -------------------------
+    # =========================
+    # Store AI Response
+    # =========================
+
     st.session_state.conversation_history.append(
         {
             "role": "assistant",
