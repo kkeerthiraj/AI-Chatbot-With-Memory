@@ -17,6 +17,20 @@ The chatbot maintains an in-memory conversation history during an active Streaml
 - ⚙️ Configurable memory limit
 - 💻 Lightweight Python implementation
 
+## 📸 Screenshots
+
+### 1. Chatbot Interface
+
+![AI Chatbot Interface](demo-1.png)
+
+### 2. Memory Demonstration
+
+![Chatbot Memory Test](demo-2.png)
+
+### 3. Conversation Memory
+
+![Conversation Memory](demo-3.png)
+
 ## 🧠 How Memory Works
 
 The chatbot maintains conversation history using Streamlit session state.
