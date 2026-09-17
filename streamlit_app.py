@@ -1,5 +1,33 @@
+import os
 import streamlit as st
-import requests
+from google import genai
+from dotenv import load_dotenv
+
+
+# =============================
+# Load Environment Variables
+# =============================
+
+load_dotenv()
+
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+
+if not GEMINI_API_KEY:
+    st.error(
+        "❌ GEMINI_API_KEY is not configured. "
+        "Please add it to your .env file."
+    )
+    st.stop()
+
+
+# =============================
+# Gemini Configuration
+# =============================
+
+MODEL = "gemini-3.6-flash"
+MEMORY_LIMIT = 10
+
+client = genai.Client(api_key=GEMINI_API_KEY)
 
 
 # =============================
@@ -11,15 +39,6 @@ st.set_page_config(
     page_icon="🤖",
     layout="centered"
 )
-
-
-# =============================
-# Configuration
-# =============================
-
-MODEL = "llama3.2:3b"
-OLLAMA_URL = "http://localhost:11434/api/chat"
-MEMORY_LIMIT = 10
 
 
 # =============================
@@ -36,7 +55,7 @@ if "conversation_history" not in st.session_state:
 
 def limit_memory():
     """Keep only the most recent messages."""
-    
+
     if len(st.session_state.conversation_history) > MEMORY_LIMIT:
         st.session_state.conversation_history = (
             st.session_state.conversation_history[-MEMORY_LIMIT:]
@@ -45,7 +64,7 @@ def limit_memory():
 
 def clear_memory():
     """Clear the current conversation memory."""
-    
+
     st.session_state.conversation_history = []
 
 
@@ -56,7 +75,7 @@ def clear_memory():
 st.title("🤖 AI Chatbot with Memory")
 
 st.caption(
-    f"Powered by Ollama • {MODEL} • "
+    f"Powered by Gemini • {MODEL} • "
     f"Memory limit: {MEMORY_LIMIT} messages"
 )
 
@@ -78,7 +97,10 @@ with st.sidebar:
         f"**{message_count}/{MEMORY_LIMIT}**"
     )
 
-    if st.button("🗑️ Clear Memory", use_container_width=True):
+    if st.button(
+        "🗑️ Clear Memory",
+        use_container_width=True
+    ):
         clear_memory()
         st.rerun()
 
@@ -94,8 +116,8 @@ with st.sidebar:
     st.subheader("About")
 
     st.write(
-        "This chatbot uses Ollama to run "
-        "a local Llama 3.2 model."
+        "This chatbot uses Google's Gemini API "
+        "through the official Python SDK."
     )
 
     st.write(
@@ -185,46 +207,57 @@ if user_message:
 
 
     # =========================
-    # Send Conversation to Ollama
+    # Prepare Conversation
+    # =========================
+
+    # Gemini uses "user" and "model" roles.
+    # Our Streamlit memory uses "user" and "assistant".
+
+    gemini_history = []
+
+    for message in st.session_state.conversation_history:
+
+        role = message["role"]
+
+        if role == "assistant":
+            role = "model"
+
+        gemini_history.append(
+            {
+                "role": role,
+                "parts": [
+                    {
+                        "text": message["content"]
+                    }
+                ]
+            }
+        )
+
+
+    # =========================
+    # Send Conversation to Gemini
     # =========================
 
     try:
 
-        response = requests.post(
-            OLLAMA_URL,
-            json={
-                "model": MODEL,
-                "messages": st.session_state.conversation_history,
-                "stream": False
-            },
-            timeout=120
+        response = client.models.generate_content(
+            model=MODEL,
+            contents=gemini_history
         )
 
-        response.raise_for_status()
+        assistant_message = response.text
 
-        assistant_message = (
-            response.json()["message"]["content"]
-        )
-
-
-    except requests.exceptions.ConnectionError:
-
-        assistant_message = (
-            "❌ Could not connect to Ollama.\n\n"
-            "Please make sure Ollama is running."
-        )
-
-
-    except requests.exceptions.Timeout:
-
-        assistant_message = (
-            "❌ Ollama took too long to respond."
-        )
+        if not assistant_message:
+            assistant_message = (
+                "❌ Gemini returned an empty response."
+            )
 
 
     except Exception as e:
 
-        assistant_message = f"❌ Error: {e}"
+        assistant_message = (
+            f"❌ Gemini API error:\n\n{e}"
+        )
 
 
     # =========================
