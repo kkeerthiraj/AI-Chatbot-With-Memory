@@ -46,3 +46,23 @@ Ollama / Llama 3.2
 AI Response
       ↓
 Conversation Memory
+
+---
+
+## 🛠️ Tech Stack
+
+- **Python**
+- **Streamlit**
+- **Ollama**
+- **Llama 3.2 3B**
+- **Requests**
+
+---
+
+## 🚀 Installation & Setup
+
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/kkeerthiraj/AI-Chatbot-With-Memory.git
+cd AI-Chatbot-With-Memory
